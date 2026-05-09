@@ -79,7 +79,7 @@ function csvToObjects(csvText) {
 
   if (!rows.length) return [];
 
-  const headers = rows[0].map(header => header.trim());
+  const headers = rows[0].map(header => header.replace(/^\uFEFF/, "").trim());
 
   return rows.slice(1).map(row => {
     const item = {};
@@ -110,10 +110,41 @@ function prepareTracks(rawTracks) {
 
     return {
       ...track,
+      _speed: getRecordSpeed(track),
       _searchBlob: normalizeText(searchableFields.join(" ")),
       _groupKey: `${normalizeText(track["Titolo"])}|${normalizeText(track["Artista"])}`
     };
   });
+}
+
+/**
+ * Ricava il tab corretto dal formato Discogs.
+ * Nel CSV i 33 giri spesso arrivano come "LP", non come testo "33".
+ */
+function getRecordSpeed(track) {
+  const formato = normalizeText(track["Formato"]);
+
+  if (formato.includes("45 rpm") || /\b45\b/.test(formato)) {
+    return "45";
+  }
+
+  if (formato.includes("33 rpm") || formato.includes("33 1 3") || /\b33\b/.test(formato)) {
+    return "33";
+  }
+
+  if (formato.includes("78 rpm") || /\b78\b/.test(formato)) {
+    return "";
+  }
+
+  if (/\blp\b/.test(formato) || formato.includes("album") || formato.includes("12")) {
+    return "33";
+  }
+
+  if (/\b7\b/.test(formato) || formato.includes("single")) {
+    return "45";
+  }
+
+  return "";
 }
 
 /**
@@ -156,8 +187,7 @@ function getFilteredTracks(query) {
 
   if (activeFilter !== "all") {
     filtered = filtered.filter(track => {
-      const formato = normalizeText(track["Formato"]);
-      return formato.includes(activeFilter);
+      return track._speed === activeFilter;
     });
   }
 
@@ -249,6 +279,8 @@ function renderSingleCard(track) {
         ${track["Formato"] ? `<span>${escapeHTML(track["Formato"])}</span>` : ""}
         ${track["Genere"] ? `<span>${escapeHTML(track["Genere"])}</span>` : ""}
       </div>
+
+      ${renderTrackDetails(track)}
     </article>
   `;
 }
@@ -283,6 +315,8 @@ function renderGroupCard(group) {
               ${track["Formato"] ? `<span>${escapeHTML(track["Formato"])}</span>` : ""}
               ${track["Etichetta"] ? `<span>${escapeHTML(track["Etichetta"])}</span>` : ""}
             </div>
+
+            ${renderTrackDetails(track)}
           </div>
         `).join("")}
       </div>
@@ -291,12 +325,84 @@ function renderGroupCard(group) {
 }
 
 /**
+ * Menu espandibile con i campi completi del CSV.
+ */
+function renderTrackDetails(track) {
+  const details = [
+    ["Posizione", track["Posizione"]],
+    ["Durata", track["Durata"]],
+    ["Paese", track["Paese"]],
+    ["Etichetta", track["Etichetta"]],
+    ["Catalogo", track["Catalogo"]],
+    ["Stile", track["Stile"]],
+    ["Written By", track["Written By"]],
+    ["Crediti Traccia", track["Crediti Traccia"]],
+    ["Note", track["Note"]]
+  ].filter(([, value]) => value);
+
+  const discogsUrl = track["URL Discogs"];
+
+  if (!details.length && !discogsUrl) {
+    return "";
+  }
+
+  return `
+    <details class="track-details">
+      <summary>Dettagli</summary>
+      <dl>
+        ${details.map(([label, value]) => `
+          <div>
+            <dt>${escapeHTML(label)}</dt>
+            <dd>${renderClickableDetailValue(value)}</dd>
+          </div>
+        `).join("")}
+        ${discogsUrl ? `
+          <div>
+            <dt>Discogs</dt>
+            <dd><a href="${escapeHTML(discogsUrl)}" target="_blank" rel="noopener noreferrer">Apri scheda</a></dd>
+          </div>
+        ` : ""}
+      </dl>
+    </details>
+  `;
+}
+
+/**
+ * Rende cliccabili i valori composti dei dettagli.
+ * Esempio: "Adriano Celentano | Luciano Beretta" diventa una serie di ricerche rapide.
+ */
+function renderClickableDetailValue(value) {
+  return String(value || "")
+    .split(" | ")
+    .map(part => part.trim())
+    .filter(Boolean)
+    .map(part => `
+      <button class="detail-search" type="button" data-search="${escapeHTML(part)}">
+        ${escapeHTML(part)}
+      </button>
+    `)
+    .join("");
+}
+
+/**
  * Click per aprire/chiudere duplicati.
  */
 function attachGroupEvents() {
-  document.querySelectorAll(".group-card").forEach(card => {
-    card.addEventListener("click", () => {
+  document.querySelectorAll(".group-card .group-header").forEach(header => {
+    header.addEventListener("click", () => {
+      const card = header.closest(".group-card");
       card.classList.toggle("open");
+    });
+  });
+
+  document.querySelectorAll(".detail-search").forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+
+      searchInput.value = button.dataset.search;
+      renderResults();
+      searchInput.focus();
+      searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   });
 }

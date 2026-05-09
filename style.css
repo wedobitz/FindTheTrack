@@ -150,6 +150,75 @@ body {
   padding: 5px 9px;
 }
 
+.track-details {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.track-details summary {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text);
+  background: var(--card-light);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.track-details dl {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.track-details dl div {
+  display: grid;
+  gap: 3px;
+}
+
+.track-details dt {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.track-details dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.track-details a {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.detail-search {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 5px 8px;
+  font: inherit;
+  line-height: 1.25;
+  cursor: pointer;
+  text-align: left;
+}
+
+.detail-search:hover,
+.detail-search:focus {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
 .group-header {
   cursor: pointer;
 }
