@@ -93,6 +93,17 @@ body {
   font-weight: 700;
 }
 
+.chip-sample {
+  border-color: rgba(255, 193, 7, 0.45);
+  color: #ffd36a;
+}
+
+.chip-sample.active {
+  background: #ffd36a;
+  border-color: #ffd36a;
+  color: #101014;
+}
+
 .status {
   margin: 4px 0 14px;
   color: var(--muted);

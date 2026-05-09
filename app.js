@@ -194,7 +194,11 @@ function getFilteredTracks(query) {
 
   let filtered = tracks;
 
-  if (activeFilter !== "all") {
+  if (activeFilter === "sample") {
+    filtered = filtered.filter(track => {
+      return normalizeText(track["Note"]).includes("sample");
+    });
+  } else if (activeFilter !== "all") {
     filtered = filtered.filter(track => {
       return track._speed === activeFilter;
     });
