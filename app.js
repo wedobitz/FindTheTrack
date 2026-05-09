@@ -3,14 +3,19 @@ const CSV_PATH = "data/output.csv";
 const searchInput = document.getElementById("searchInput");
 const resultsEl = document.getElementById("results");
 const resultCountEl = document.getElementById("resultCount");
+const exploreButton = document.getElementById("exploreButton");
+const qualityButton = document.getElementById("qualityButton");
+const statsButton = document.getElementById("statsButton");
 const chips = document.querySelectorAll(".chip");
 const MAX_COVER_REQUESTS = 5;
 const RESULTS_PAGE_SIZE = 5;
+const SAMPLE_PASSWORD = "tpiacess";
 
 let tracks = [];
 let activeFilter = "all";
 let debounceTimer = null;
 let visibleResultCount = RESULTS_PAGE_SIZE;
+let sampleUnlocked = false;
 let coverCache = loadCoverCache();
 let coverQueue = [];
 let activeCoverRequests = 0;
@@ -111,6 +116,10 @@ function prepareTracks(rawTracks) {
       track["Artista"],
       track["Artista Album"],
       track["Album"],
+      track["Anno"],
+      track["Paese"],
+      track["Etichetta"],
+      track["Formato"],
       track["Genere"],
       track["Stile"],
       track["Written By"],
@@ -204,7 +213,20 @@ function getFilteredTracks(query) {
     });
   }
 
-  if (normalizedQuery) {
+  if (normalizedQuery === "__missing_duration") {
+    filtered = filtered.filter(track => !String(track["Durata"] || "").trim());
+  } else if (normalizedQuery === "__missing_year") {
+    filtered = filtered.filter(track => !Number(track["Anno"]));
+  } else if (normalizedQuery === "__missing_title") {
+    filtered = filtered.filter(track => !String(track["Titolo"] || "").trim());
+  } else if (normalizedQuery === "__missing_position") {
+    filtered = filtered.filter(track => !String(track["Posizione"] || "").trim());
+  } else if (normalizedQuery === "__missing_written_by") {
+    filtered = filtered.filter(track => !String(track["Written By"] || "").trim());
+  } else if (normalizedQuery === "__suspicious_duplicates") {
+    const duplicateKeys = getSuspiciousDuplicateKeys();
+    filtered = filtered.filter(track => duplicateKeys.has(getSuspiciousDuplicateKey(track)));
+  } else if (normalizedQuery) {
     const terms = normalizedQuery.split(" ");
 
     filtered = filtered.filter(track => {
@@ -293,6 +315,21 @@ function buildSingleResultItems(singleTracks) {
  * Rendering principale.
  */
 function renderResults() {
+  if (activeFilter === "quality") {
+    renderQualityDashboard();
+    return;
+  }
+
+  if (activeFilter === "explore") {
+    renderExploreDashboard();
+    return;
+  }
+
+  if (activeFilter === "stats") {
+    renderStatsDashboard();
+    return;
+  }
+
   const query = searchInput.value;
   const filteredTracks = getFilteredTracks(query);
   const resultItems = buildResultItems(filteredTracks);
@@ -339,6 +376,297 @@ function renderLoadMoreButton(hasMoreResults, totalItems, visibleItems) {
       <span>${visibleItems} di ${totalItems}</span>
     </button>
   `;
+}
+
+function renderStatsDashboard() {
+  const stats = getCollectionStats();
+
+  resultCountEl.textContent = "Statistiche collezione";
+  resultsEl.innerHTML = `
+    <section class="stats-grid">
+      ${renderStatCard("Brani caricati", formatNumber(stats.trackCount))}
+      ${renderStatCard("Dischi", formatNumber(stats.recordCount))}
+      ${renderStatCard("Scaffali", formatNumber(stats.folderCount))}
+      ${renderStatCard("Artista più presente", stats.topArtist.label, `${stats.topArtist.count} brani`)}
+      ${renderStatCard("Genere più presente", stats.topGenre.label, `${stats.topGenre.count} brani`)}
+      ${renderStatCard("Decade più rappresentata", stats.topDecade.label, `${stats.topDecade.count} brani`)}
+      ${renderStatCard("Etichetta più frequente", stats.topLabel.label, `${stats.topLabel.count} brani`)}
+    </section>
+  `;
+}
+
+function renderExploreDashboard() {
+  const groups = getExploreGroups();
+
+  resultCountEl.textContent = "Esplora collezione";
+  resultsEl.innerHTML = `
+    <section class="explore">
+      ${groups.map(group => `
+        <article class="explore-section">
+          <h2>${escapeHTML(group.label)}</h2>
+          <div class="explore-chips">
+            ${group.items.map(item => `
+              <button class="explore-chip" type="button" data-search="${escapeHTML(item.search)}">
+                ${escapeHTML(item.label)}
+                <span>${item.count}</span>
+              </button>
+            `).join("")}
+          </div>
+        </article>
+      `).join("")}
+    </section>
+  `;
+}
+
+function renderQualityDashboard() {
+  const issues = getDataQualityIssues();
+
+  resultCountEl.textContent = "Qualità dati";
+  resultsEl.innerHTML = `
+    <section class="quality">
+      ${issues.map(issue => `
+        <article class="quality-card ${issue.count ? "" : "is-ok"}">
+          <div>
+            <h2>${escapeHTML(issue.label)}</h2>
+            <p>${escapeHTML(issue.description)}</p>
+          </div>
+          <button class="quality-action" type="button" data-search="${escapeHTML(issue.search)}" ${issue.count ? "" : "disabled"}>
+            ${issue.count}
+          </button>
+        </article>
+      `).join("")}
+    </section>
+  `;
+}
+
+function getDataQualityIssues() {
+  const duplicateKeys = getSuspiciousDuplicateKeys();
+
+  return [
+    {
+      label: "Brani senza titolo",
+      description: "Righe prive del titolo del brano.",
+      search: "__missing_title",
+      count: countMissing(track => track["Titolo"])
+    },
+    {
+      label: "Anno = 0",
+      description: "Dischi o brani con anno assente o impostato a zero.",
+      search: "__missing_year",
+      count: countMissing(track => track["Anno"])
+    },
+    {
+      label: "Posizione mancante",
+      description: "Tracce senza lato/numero, per esempio A1 o B2.",
+      search: "__missing_position",
+      count: countMissing(track => track["Posizione"])
+    },
+    {
+      label: "Durata mancante",
+      description: "Brani senza durata indicata.",
+      search: "__missing_duration",
+      count: countMissing(track => track["Durata"])
+    },
+    {
+      label: "Written By mancante",
+      description: "Brani senza autori/compositori.",
+      search: "__missing_written_by",
+      count: countMissing(track => track["Written By"])
+    },
+    {
+      label: "Doppioni sospetti",
+      description: "Stesso artista, titolo e album presenti più volte.",
+      search: "__suspicious_duplicates",
+      count: tracks.filter(track => duplicateKeys.has(getSuspiciousDuplicateKey(track))).length
+    }
+  ];
+}
+
+function getExploreGroups() {
+  return [
+    {
+      label: "Generi più presenti",
+      items: getTopExploreItems(track => splitValues(track["Genere"]))
+    },
+    {
+      label: "Stili più presenti",
+      items: getTopExploreItems(track => splitValues(track["Stile"]))
+    },
+    {
+      label: "Anni",
+      items: getTopExploreItems(track => [track["Anno"]].filter(Boolean))
+    },
+    {
+      label: "Paesi",
+      items: getTopExploreItems(track => [track["Paese"]].filter(Boolean))
+    },
+    {
+      label: "Etichette",
+      items: getTopExploreItems(track => splitValues(track["Etichetta"]))
+    },
+    {
+      label: "Scaffali",
+      items: getTopExploreItems(track => [track["Cartella"]].filter(Boolean))
+    },
+    {
+      label: "Ricerche rapide",
+      items: [
+        { label: "Brani senza durata", search: "__missing_duration", count: countMissing(track => track["Durata"]) },
+        { label: "Dischi senza anno", search: "__missing_year", count: countMissing(track => track["Anno"]) }
+      ].filter(item => item.count)
+    }
+  ].filter(group => group.items.length);
+}
+
+function getTopExploreItems(getValues, limit = 12) {
+  const counts = new Map();
+
+  tracks.forEach(track => {
+    getValues(track).forEach(value => {
+      const label = String(value || "").trim();
+      if (!label || label === "0") return;
+
+      counts.set(label, (counts.get(label) || 0) + 1);
+    });
+  });
+
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([label, count]) => ({
+      label,
+      search: label,
+      count
+    }));
+}
+
+function getCollectionStats() {
+  return {
+    trackCount: tracks.length,
+    recordCount: countUnique(tracks, getAlbumKey),
+    folderCount: countUnique(tracks, track => track["Cartella"]),
+    topArtist: getMostFrequent(tracks, getStatsArtist),
+    topGenre: getMostFrequent(tracks, track => splitFirstValue(track["Genere"])),
+    topDecade: getMostFrequent(tracks, getDecade),
+    topLabel: getMostFrequent(tracks, track => splitFirstValue(track["Etichetta"]))
+  };
+}
+
+function renderStatCard(label, value, detail = "") {
+  return `
+    <article class="stat-card">
+      <div class="stat-label">${escapeHTML(label)}</div>
+      <div class="stat-value">${escapeHTML(value || "Non indicato")}</div>
+      ${detail ? `<div class="stat-detail">${escapeHTML(detail)}</div>` : ""}
+    </article>
+  `;
+}
+
+function countUnique(items, getValue) {
+  const values = new Set();
+
+  items.forEach(item => {
+    const value = normalizeText(getValue(item));
+    if (value) values.add(value);
+  });
+
+  return values.size;
+}
+
+function getMostFrequent(items, getValue) {
+  const counts = new Map();
+
+  items.forEach(item => {
+    const value = String(getValue(item) || "").trim();
+    if (!value) return;
+
+    counts.set(value, (counts.get(value) || 0) + 1);
+  });
+
+  let top = { label: "", count: 0 };
+
+  counts.forEach((count, label) => {
+    if (count > top.count) {
+      top = { label, count };
+    }
+  });
+
+  return top;
+}
+
+function splitFirstValue(value) {
+  return String(value || "").split(",")[0].trim();
+}
+
+function splitValues(value) {
+  return String(value || "")
+    .split(",")
+    .map(part => part.trim())
+    .filter(Boolean);
+}
+
+function countMissing(getValue) {
+  return tracks.filter(track => {
+    const value = String(getValue(track) || "").trim();
+    return !value || value === "0";
+  }).length;
+}
+
+function getSuspiciousDuplicateKeys() {
+  const counts = new Map();
+
+  tracks.forEach(track => {
+    const key = getSuspiciousDuplicateKey(track);
+    if (!key) return;
+
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+
+  const duplicateKeys = new Set();
+
+  counts.forEach((count, key) => {
+    if (count > 1) {
+      duplicateKeys.add(key);
+    }
+  });
+
+  return duplicateKeys;
+}
+
+function getSuspiciousDuplicateKey(track) {
+  const title = normalizeText(track["Titolo"]);
+  const artist = normalizeText(track["Artista"]);
+  const album = normalizeText(track["Album"]);
+
+  if (!title || !artist || !album) {
+    return "";
+  }
+
+  return `${title}|${artist}|${album}`;
+}
+
+function getStatsArtist(track) {
+  const artist = String(track["Artista"] || "").trim();
+
+  if (normalizeText(artist) === "various") {
+    return "";
+  }
+
+  return artist;
+}
+
+function getDecade(track) {
+  const year = Number(track["Anno"]);
+
+  if (!year) {
+    return "";
+  }
+
+  return `${Math.floor(year / 10) * 10}s`;
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat("it-IT").format(value);
 }
 
 /**
@@ -646,6 +974,30 @@ function renderClickableDetailValue(value) {
  * Click delegati sui risultati: restano validi dopo ogni ricerca o cambio tab.
  */
 function handleResultsClick(event) {
+  const qualityAction = event.target.closest(".quality-action");
+
+  if (qualityAction && !qualityAction.disabled) {
+    searchInput.value = qualityAction.dataset.search;
+    setActiveFilter("all");
+    visibleResultCount = RESULTS_PAGE_SIZE;
+    renderResults();
+    searchInput.focus();
+    searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+
+  const exploreChip = event.target.closest(".explore-chip");
+
+  if (exploreChip) {
+    searchInput.value = exploreChip.dataset.search;
+    setActiveFilter("all");
+    visibleResultCount = RESULTS_PAGE_SIZE;
+    renderResults();
+    searchInput.focus();
+    searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+
   const detailSearch = event.target.closest(".detail-search");
 
   if (detailSearch) {
@@ -701,6 +1053,10 @@ function handleSearchInput() {
   clearTimeout(debounceTimer);
 
   debounceTimer = setTimeout(() => {
+    if (activeFilter === "stats" || activeFilter === "explore" || activeFilter === "quality") {
+      setActiveFilter("all");
+    }
+
     visibleResultCount = RESULTS_PAGE_SIZE;
     renderResults();
   }, 120);
@@ -722,17 +1078,64 @@ function renderInitialState() {
  */
 chips.forEach(chip => {
   chip.addEventListener("click", () => {
-    chips.forEach(c => c.classList.remove("active"));
-    chip.classList.add("active");
+    if (chip.dataset.filter === "sample" && !unlockSampleFilter()) {
+      return;
+    }
 
-    activeFilter = chip.dataset.filter;
+    setActiveFilter(chip.dataset.filter);
     visibleResultCount = RESULTS_PAGE_SIZE;
     renderResults();
   });
 });
 
+function setActiveFilter(filter) {
+  activeFilter = filter;
+
+  chips.forEach(chip => {
+    chip.classList.toggle("active", chip.dataset.filter === filter);
+  });
+
+  statsButton.classList.toggle("active", filter === "stats");
+  exploreButton.classList.toggle("active", filter === "explore");
+  qualityButton.classList.toggle("active", filter === "quality");
+}
+
+function unlockSampleFilter() {
+  if (sampleUnlocked) {
+    return true;
+  }
+
+  const password = window.prompt("Password per accedere ai Sample");
+
+  if (password === SAMPLE_PASSWORD) {
+    sampleUnlocked = true;
+    return true;
+  }
+
+  if (password !== null) {
+    window.alert("Password non corretta");
+  }
+
+  return false;
+}
+
 searchInput.addEventListener("input", handleSearchInput);
 resultsEl.addEventListener("click", handleResultsClick);
+exploreButton.addEventListener("click", () => {
+  setActiveFilter("explore");
+  visibleResultCount = RESULTS_PAGE_SIZE;
+  renderResults();
+});
+qualityButton.addEventListener("click", () => {
+  setActiveFilter("quality");
+  visibleResultCount = RESULTS_PAGE_SIZE;
+  renderResults();
+});
+statsButton.addEventListener("click", () => {
+  setActiveFilter("stats");
+  visibleResultCount = RESULTS_PAGE_SIZE;
+  renderResults();
+});
 
 loadCSV();
 focusSearchInput();

@@ -6,14 +6,40 @@
 
   <title>Find the Track</title>
 
-  <link rel="stylesheet" href="style.css?v=0.4.5" />
+  <link rel="stylesheet" href="style.css?v=0.4.11" />
 </head>
 <body>
 
   <main class="app">
 
     <header class="header">
-      <h1>Find the Track</h1>
+      <div class="header-top">
+        <h1>Find the Track</h1>
+        <div class="header-actions">
+          <button id="exploreButton" class="icon-button" type="button" aria-label="Esplora collezione" title="Esplora">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="M16 16L21 21"></path>
+              <path d="M11 8V14"></path>
+              <path d="M8 11H14"></path>
+            </svg>
+          </button>
+          <button id="qualityButton" class="icon-button" type="button" aria-label="Qualità dati" title="Qualità dati">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M12 3L21 7.5V12C21 16.5 17.3 20 12 21C6.7 20 3 16.5 3 12V7.5L12 3Z"></path>
+              <path d="M9 12L11 14L15.5 9.5"></path>
+            </svg>
+          </button>
+          <button id="statsButton" class="icon-button" type="button" aria-label="Statistiche collezione" title="Statistiche">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M5 19V10"></path>
+              <path d="M12 19V5"></path>
+              <path d="M19 19V13"></path>
+              <path d="M4 19H20"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
       <p>Cerca un brano e trova subito il vinile sullo scaffale.</p>
     </header>
 
@@ -40,11 +66,11 @@
     <section id="results" class="results"></section>
 
     <footer class="footer">
-      v0.4.5
+      v0.4.11
     </footer>
 
   </main>
 
-  <script src="app.js?v=0.4.5"></script>
+  <script src="app.js?v=0.4.11"></script>
 </body>
 </html>
