@@ -101,6 +101,7 @@ function prepareTracks(rawTracks) {
     const searchableFields = [
       track["Titolo"],
       track["Artista"],
+      track["Artista Album"],
       track["Album"],
       track["Genere"],
       track["Stile"],
@@ -203,19 +204,74 @@ function getFilteredTracks(query) {
 }
 
 /**
- * Raggruppa duplicati per Titolo + Artista.
+ * Costruisce i blocchi risultato.
+ * Più tracce dello stesso disco diventano una card album espandibile.
  */
-function groupTracks(filteredTracks) {
+function buildResultItems(filteredTracks) {
+  const albumGroups = new Map();
+
+  filteredTracks.forEach((track, index) => {
+    const key = getAlbumKey(track);
+
+    if (!albumGroups.has(key)) {
+      albumGroups.set(key, {
+        firstIndex: index,
+        tracks: []
+      });
+    }
+
+    albumGroups.get(key).tracks.push(track);
+  });
+
+  const albumItems = [];
+  const singleTracks = [];
+
+  albumGroups.forEach(group => {
+    if (group.tracks.length > 1) {
+      albumItems.push({
+        type: "album",
+        firstIndex: group.firstIndex,
+        tracks: group.tracks
+      });
+      return;
+    }
+
+    singleTracks.push({
+      firstIndex: group.firstIndex,
+      track: group.tracks[0]
+    });
+  });
+
+  return albumItems
+    .concat(buildSingleResultItems(singleTracks))
+    .sort((a, b) => a.firstIndex - b.firstIndex);
+}
+
+function getAlbumKey(track) {
+  return [
+    track["URL Discogs"],
+    track["Catalogo"],
+    track["Album"],
+    track["Artista Album"] || track["Artista"],
+    track["Cartella"]
+  ].map(normalizeText).join("|");
+}
+
+function buildSingleResultItems(singleTracks) {
   const groups = new Map();
 
-  filteredTracks.forEach(track => {
+  singleTracks.forEach(({ firstIndex, track }) => {
     const key = track._groupKey;
 
     if (!groups.has(key)) {
-      groups.set(key, []);
+      groups.set(key, {
+        type: "group",
+        firstIndex,
+        tracks: []
+      });
     }
 
-    groups.get(key).push(track);
+    groups.get(key).tracks.push(track);
   });
 
   return Array.from(groups.values());
@@ -227,7 +283,7 @@ function groupTracks(filteredTracks) {
 function renderResults() {
   const query = searchInput.value;
   const filteredTracks = getFilteredTracks(query);
-  const groupedTracks = groupTracks(filteredTracks);
+  const resultItems = buildResultItems(filteredTracks);
 
   resultCountEl.textContent = `${filteredTracks.length} risultati`;
 
@@ -240,26 +296,60 @@ function renderResults() {
     return;
   }
 
-  resultsEl.innerHTML = groupedTracks
+  resultsEl.innerHTML = resultItems
     .slice(0, 150)
-    .map(group => {
-      if (group.length === 1) {
-        return renderSingleCard(group[0]);
+    .map(item => {
+      if (item.type === "album") {
+        return renderAlbumCard(item.tracks);
       }
 
-      return renderGroupCard(group);
+      if (item.tracks.length === 1) {
+        return renderSingleCard(item.tracks[0]);
+      }
+
+      return renderGroupCard(item.tracks);
     })
     .join("");
 
   attachGroupEvents();
 
-  if (groupedTracks.length > 150) {
+  if (resultItems.length > 150) {
     resultsEl.innerHTML += `
       <div class="empty">
         Mostrati i primi 150 risultati. Continua a scrivere per restringere la ricerca.
       </div>
     `;
   }
+}
+
+/**
+ * Card album espandibile.
+ */
+function renderAlbumCard(tracks) {
+  const first = tracks[0];
+  const albumArtist = first["Artista Album"] || first["Artista"];
+
+  return `
+    <article class="card album-card">
+      <div class="album-header">
+        <h2 class="card-title">${escapeHTML(first["Album"] || "Album non indicato")}</h2>
+        <div class="card-artist">${escapeHTML(albumArtist)}</div>
+
+        <div class="folder">Scaffale: ${escapeHTML(first["Cartella"])}</div>
+
+        <div class="meta">
+          <span>${tracks.length} brani trovati</span>
+          ${first["Anno"] ? `<span>${escapeHTML(first["Anno"])}</span>` : ""}
+          ${first["Formato"] ? `<span>${escapeHTML(first["Formato"])}</span>` : ""}
+          ${first["Genere"] ? `<span>${escapeHTML(first["Genere"])}</span>` : ""}
+        </div>
+      </div>
+
+      <div class="album-tracks">
+        ${tracks.map(track => renderSingleCard(track)).join("")}
+      </div>
+    </article>
+  `;
 }
 
 /**
@@ -271,7 +361,7 @@ function renderSingleCard(track) {
       <h2 class="card-title">${escapeHTML(track["Titolo"])}</h2>
       <div class="card-artist">${escapeHTML(track["Artista"])}</div>
 
-      <div class="folder">Scaffale / Cartella: ${escapeHTML(track["Cartella"])}</div>
+      <div class="folder">Scaffale: ${escapeHTML(track["Cartella"])}</div>
 
       <div class="meta">
         ${track["Album"] ? `<span>${escapeHTML(track["Album"])}</span>` : ""}
@@ -333,6 +423,7 @@ function renderTrackDetails(track) {
     ["Posizione", track["Posizione"]],
     ["Durata", track["Durata"]],
     ["Paese", track["Paese"]],
+    ["Artista Album", hasDifferentAlbumArtist(track) ? track["Artista Album"] : ""],
     ["Etichetta", track["Etichetta"]],
     ["Catalogo", track["Catalogo"]],
     ["Stile", track["Stile"]],
@@ -366,6 +457,10 @@ function renderTrackDetails(track) {
       </dl>
     </details>
   `;
+}
+
+function hasDifferentAlbumArtist(track) {
+  return track["Artista Album"] && normalizeText(track["Artista Album"]) !== normalizeText(track["Artista"]);
 }
 
 /**
@@ -416,6 +511,13 @@ function renderClickableDetailValue(value) {
  * Click per aprire/chiudere duplicati.
  */
 function attachGroupEvents() {
+  document.querySelectorAll(".album-card .album-header").forEach(header => {
+    header.addEventListener("click", () => {
+      const card = header.closest(".album-card");
+      card.classList.toggle("open");
+    });
+  });
+
   document.querySelectorAll(".group-card .group-header").forEach(header => {
     header.addEventListener("click", () => {
       const card = header.closest(".group-card");
@@ -485,3 +587,9 @@ chips.forEach(chip => {
 searchInput.addEventListener("input", handleSearchInput);
 
 loadCSV();
+focusSearchInput();
+
+function focusSearchInput() {
+  searchInput.focus();
+  setTimeout(() => searchInput.focus(), 0);
+}
