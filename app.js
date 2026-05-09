@@ -4,10 +4,18 @@ const searchInput = document.getElementById("searchInput");
 const resultsEl = document.getElementById("results");
 const resultCountEl = document.getElementById("resultCount");
 const chips = document.querySelectorAll(".chip");
+const MAX_COVER_REQUESTS = 5;
+const RESULTS_PAGE_SIZE = 5;
 
 let tracks = [];
 let activeFilter = "all";
 let debounceTimer = null;
+let visibleResultCount = RESULTS_PAGE_SIZE;
+let coverCache = loadCoverCache();
+let coverQueue = [];
+let activeCoverRequests = 0;
+const queuedCoverIds = new Set();
+const unavailableCoverIds = new Set();
 
 /**
  * Normalizza testo:
@@ -284,6 +292,8 @@ function renderResults() {
   const query = searchInput.value;
   const filteredTracks = getFilteredTracks(query);
   const resultItems = buildResultItems(filteredTracks);
+  const visibleItems = resultItems.slice(0, visibleResultCount);
+  const hasMoreResults = resultItems.length > visibleResultCount;
 
   resultCountEl.textContent = `${filteredTracks.length} risultati`;
 
@@ -297,7 +307,7 @@ function renderResults() {
   }
 
   resultsEl.innerHTML = resultItems
-    .slice(0, 150)
+    .slice(0, visibleResultCount)
     .map(item => {
       if (item.type === "album") {
         return renderAlbumCard(item.tracks);
@@ -309,17 +319,22 @@ function renderResults() {
 
       return renderGroupCard(item.tracks);
     })
-    .join("");
+    .join("") + renderLoadMoreButton(hasMoreResults, resultItems.length, visibleItems.length);
 
-  attachGroupEvents();
+  loadVisibleAlbumCovers();
+}
 
-  if (resultItems.length > 150) {
-    resultsEl.innerHTML += `
-      <div class="empty">
-        Mostrati i primi 150 risultati. Continua a scrivere per restringere la ricerca.
-      </div>
-    `;
+function renderLoadMoreButton(hasMoreResults, totalItems, visibleItems) {
+  if (!hasMoreResults) {
+    return "";
   }
+
+  return `
+    <button class="load-more" type="button">
+      Altri risultati
+      <span>${visibleItems} di ${totalItems}</span>
+    </button>
+  `;
 }
 
 /**
@@ -328,21 +343,31 @@ function renderResults() {
 function renderAlbumCard(tracks) {
   const first = tracks[0];
   const albumArtist = first["Artista Album"] || first["Artista"];
+  const releaseId = getDiscogsReleaseId(first);
+  const coverUrl = coverCache[releaseId];
 
   return `
     <article class="card album-card">
-      <div class="album-header">
-        <h2 class="card-title">${escapeHTML(first["Album"] || "Album non indicato")}</h2>
-        <div class="card-artist">${escapeHTML(albumArtist)}</div>
+      <div class="album-header ${releaseId ? "" : "no-cover"}">
+        <div class="album-main">
+          <h2 class="card-title">${escapeHTML(first["Album"] || "Album non indicato")}</h2>
+          <div class="card-artist">${escapeHTML(albumArtist)}</div>
 
-        <div class="folder">Scaffale: ${escapeHTML(first["Cartella"])}</div>
+          <div class="folder">Scaffale: ${escapeHTML(first["Cartella"])}</div>
 
-        <div class="meta">
-          <span>${tracks.length} brani trovati</span>
-          ${first["Anno"] ? `<span>${escapeHTML(first["Anno"])}</span>` : ""}
-          ${first["Formato"] ? `<span>${escapeHTML(first["Formato"])}</span>` : ""}
-          ${first["Genere"] ? `<span>${escapeHTML(first["Genere"])}</span>` : ""}
+          <div class="meta">
+            <span>${tracks.length} brani trovati</span>
+            ${first["Anno"] ? `<span>${escapeHTML(first["Anno"])}</span>` : ""}
+            ${first["Formato"] ? `<span>${escapeHTML(first["Formato"])}</span>` : ""}
+            ${first["Genere"] ? `<span>${escapeHTML(first["Genere"])}</span>` : ""}
+          </div>
         </div>
+
+        ${releaseId ? `
+          <div class="album-cover ${coverUrl ? "loaded" : ""}" data-release-id="${escapeHTML(releaseId)}">
+            ${coverUrl ? `<img src="${escapeHTML(coverUrl)}" alt="">` : ""}
+          </div>
+        ` : ""}
       </div>
 
       <div class="album-tracks">
@@ -350,6 +375,112 @@ function renderAlbumCard(tracks) {
       </div>
     </article>
   `;
+}
+
+function getDiscogsReleaseId(track) {
+  const match = String(track["URL Discogs"] || "").match(/\/release\/(\d+)/);
+  return match ? match[1] : "";
+}
+
+function loadCoverCache() {
+  try {
+    return JSON.parse(localStorage.getItem("albumCoverCache") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveCoverCache() {
+  try {
+    localStorage.setItem("albumCoverCache", JSON.stringify(coverCache));
+  } catch {
+    // La cache immagini è un bonus: se il browser la blocca, l'app continua a funzionare.
+  }
+}
+
+function loadVisibleAlbumCovers() {
+  document.querySelectorAll(".album-cover[data-release-id]").forEach(cover => {
+    const releaseId = cover.dataset.releaseId;
+
+    if (!releaseId || cover.querySelector("img") || unavailableCoverIds.has(releaseId)) {
+      return;
+    }
+
+    if (coverCache[releaseId]) {
+      setAlbumCoverImage(cover, coverCache[releaseId]);
+      return;
+    }
+
+    queueAlbumCover(releaseId);
+  });
+
+  processCoverQueue();
+}
+
+function queueAlbumCover(releaseId) {
+  if (queuedCoverIds.has(releaseId)) {
+    return;
+  }
+
+  queuedCoverIds.add(releaseId);
+  coverQueue.push(releaseId);
+}
+
+function processCoverQueue() {
+  while (activeCoverRequests < MAX_COVER_REQUESTS && coverQueue.length) {
+    const releaseId = coverQueue.shift();
+    activeCoverRequests++;
+
+    fetchDiscogsCover(releaseId)
+      .then(url => {
+        if (url) {
+          coverCache[releaseId] = url;
+          saveCoverCache();
+          updateAlbumCoverElements(releaseId, url);
+          return;
+        }
+
+        unavailableCoverIds.add(releaseId);
+        updateUnavailableCoverElements(releaseId);
+      })
+      .catch(() => {
+        unavailableCoverIds.add(releaseId);
+        updateUnavailableCoverElements(releaseId);
+      })
+      .finally(() => {
+        activeCoverRequests--;
+        processCoverQueue();
+      });
+  }
+}
+
+function updateAlbumCoverElements(releaseId, url) {
+  document
+    .querySelectorAll(`.album-cover[data-release-id="${releaseId}"]`)
+    .forEach(cover => setAlbumCoverImage(cover, url));
+}
+
+function updateUnavailableCoverElements(releaseId) {
+  document
+    .querySelectorAll(`.album-cover[data-release-id="${releaseId}"]`)
+    .forEach(cover => cover.classList.add("unavailable"));
+}
+
+async function fetchDiscogsCover(releaseId) {
+  const response = await fetch(`https://api.discogs.com/releases/${releaseId}`);
+
+  if (!response.ok) {
+    return "";
+  }
+
+  const release = await response.json();
+  const primaryImage = release.images?.find(image => image.type === "primary");
+  return primaryImage?.uri150 || release.thumb || release.images?.[0]?.uri150 || "";
+}
+
+function setAlbumCoverImage(cover, url) {
+  cover.classList.add("loaded");
+  cover.innerHTML = `<img src="${escapeHTML(url)}" alt="">`;
 }
 
 /**
@@ -508,33 +639,43 @@ function renderClickableDetailValue(value) {
 }
 
 /**
- * Click per aprire/chiudere duplicati.
+ * Click delegati sui risultati: restano validi dopo ogni ricerca o cambio tab.
  */
-function attachGroupEvents() {
-  document.querySelectorAll(".album-card .album-header").forEach(header => {
-    header.addEventListener("click", () => {
-      const card = header.closest(".album-card");
-      card.classList.toggle("open");
-    });
-  });
+function handleResultsClick(event) {
+  const detailSearch = event.target.closest(".detail-search");
 
-  document.querySelectorAll(".group-card .group-header").forEach(header => {
-    header.addEventListener("click", () => {
-      const card = header.closest(".group-card");
-      card.classList.toggle("open");
-    });
-  });
+  if (detailSearch) {
+    event.stopPropagation();
 
-  document.querySelectorAll(".detail-search").forEach(button => {
-    button.addEventListener("click", event => {
-      event.stopPropagation();
+    searchInput.value = detailSearch.dataset.search;
+    renderResults();
+    searchInput.focus();
+    searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
 
-      searchInput.value = button.dataset.search;
-      renderResults();
-      searchInput.focus();
-      searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-  });
+  const albumHeader = event.target.closest(".album-card .album-header");
+
+  if (albumHeader) {
+    const card = albumHeader.closest(".album-card");
+    card.classList.toggle("open");
+    return;
+  }
+
+  const groupHeader = event.target.closest(".group-card .group-header");
+
+  if (groupHeader) {
+    const card = groupHeader.closest(".group-card");
+    card.classList.toggle("open");
+    return;
+  }
+
+  const loadMoreButton = event.target.closest(".load-more");
+
+  if (loadMoreButton) {
+    visibleResultCount += RESULTS_PAGE_SIZE;
+    renderResults();
+  }
 }
 
 /**
@@ -556,6 +697,7 @@ function handleSearchInput() {
   clearTimeout(debounceTimer);
 
   debounceTimer = setTimeout(() => {
+    visibleResultCount = RESULTS_PAGE_SIZE;
     renderResults();
   }, 120);
 }
@@ -580,11 +722,13 @@ chips.forEach(chip => {
     chip.classList.add("active");
 
     activeFilter = chip.dataset.filter;
+    visibleResultCount = RESULTS_PAGE_SIZE;
     renderResults();
   });
 });
 
 searchInput.addEventListener("input", handleSearchInput);
+resultsEl.addEventListener("click", handleResultsClick);
 
 loadCSV();
 focusSearchInput();
