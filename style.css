@@ -1,0 +1,200 @@
+:root {
+  --bg: #101014;
+  --card: #1b1b22;
+  --card-light: #24242c;
+  --text: #f5f5f7;
+  --muted: #a4a4ad;
+  --accent: #1ed760;
+  --accent-dark: #13a84a;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 32px;
+  letter-spacing: -0.04em;
+}
+
+.header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.search-section {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 12px 0 16px;
+  background: linear-gradient(to bottom, var(--bg) 80%, transparent);
+}
+
+#searchInput {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 18px;
+  padding: 16px 18px;
+  font-size: 17px;
+  outline: none;
+}
+
+#searchInput:focus {
+  border-color: var(--accent);
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 13px;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.status {
+  margin: 4px 0 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.results {
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 16px;
+}
+
+.card-title {
+  font-size: 19px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  letter-spacing: -0.02em;
+}
+
+.card-artist {
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: #000;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 15px;
+  margin: 8px 0 10px;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.meta span {
+  background: var(--card-light);
+  border-radius: 999px;
+  padding: 5px 9px;
+}
+
+.group-header {
+  cursor: pointer;
+}
+
+.duplicate-count {
+  color: var(--accent);
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+.versions {
+  display: none;
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.card.open .versions {
+  display: grid;
+  gap: 10px;
+}
+
+.version {
+  background: var(--card-light);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.version-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 40px 10px;
+}
+
+@media (min-width: 700px) {
+  .app {
+    padding: 32px;
+  }
+
+  .header h1 {
+    font-size: 42px;
+  }
+}

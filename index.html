@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Vinyl Finder</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <main class="app">
+
+    <header class="header">
+      <h1>Vinyl Finder</h1>
+      <p>Cerca un brano e trova subito il vinile sullo scaffale.</p>
+    </header>
+
+    <section class="search-section">
+      <input
+        id="searchInput"
+        type="search"
+        placeholder="Cerca brano, artista, album..."
+        autocomplete="off"
+      />
+
+      <div class="chips">
+        <button class="chip active" data-filter="all">Tutti</button>
+        <button class="chip" data-filter="33">33 giri</button>
+        <button class="chip" data-filter="45">45 giri</button>
+      </div>
+    </section>
+
+    <section class="status">
+      <span id="resultCount">Caricamento dati...</span>
+    </section>
+
+    <section id="results" class="results"></section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
