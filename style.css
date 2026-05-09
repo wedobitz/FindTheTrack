@@ -4,8 +4,8 @@
   --card-light: #24242c;
   --text: #f5f5f7;
   --muted: #a4a4ad;
-  --accent: #1ed760;
-  --accent-dark: #13a84a;
+  --accent: #D8CF25;
+  --accent-dark: #bdb51f;
   --border: rgba(255, 255, 255, 0.08);
 }
 
@@ -15,7 +15,8 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 700;
   background: var(--bg);
   color: var(--text);
   overflow-x: hidden;
@@ -39,12 +40,19 @@ body {
   gap: 14px;
 }
 
-.header h1 {
+.brand-title {
   min-width: 0;
   margin: 0;
-  font-size: 32px;
-  letter-spacing: -0.04em;
-  line-height: 1.05;
+  line-height: 0;
+}
+
+.brand-title img {
+  display: block;
+  width: min(270px, 48vw);
+  height: auto;
+  max-height: 58px;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .header-actions {
@@ -222,8 +230,8 @@ body {
 .album-card {
   position: relative;
   box-shadow:
-    5px 5px 0 rgba(30, 215, 96, 0.12),
-    10px 10px 0 rgba(30, 215, 96, 0.06);
+    5px 5px 0 rgba(216, 207, 37, 0.12),
+    10px 10px 0 rgba(216, 207, 37, 0.06);
 }
 
 .album-card::before,
@@ -237,15 +245,15 @@ body {
 }
 
 .album-card::before {
-  border: 1px solid rgba(30, 215, 96, 0.38);
+  border: 1px solid rgba(216, 207, 37, 0.38);
   transform: translate(5px, 5px);
-  background: rgba(30, 215, 96, 0.12);
+  background: rgba(216, 207, 37, 0.12);
 }
 
 .album-card::after {
-  border: 1px solid rgba(30, 215, 96, 0.24);
+  border: 1px solid rgba(216, 207, 37, 0.24);
   transform: translate(10px, 10px);
-  background: rgba(30, 215, 96, 0.07);
+  background: rgba(216, 207, 37, 0.07);
 }
 
 .album-card.open::before,
@@ -277,8 +285,8 @@ body {
   width: 82px;
   aspect-ratio: 1;
   background:
-    linear-gradient(135deg, rgba(30, 215, 96, 0.22), rgba(255, 255, 255, 0.04));
-  border: 1px solid rgba(30, 215, 96, 0.28);
+    linear-gradient(135deg, rgba(216, 207, 37, 0.22), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(216, 207, 37, 0.28);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -417,8 +425,8 @@ body {
 
 .load-more {
   width: 100%;
-  border: 1px solid rgba(30, 215, 96, 0.45);
-  background: rgba(30, 215, 96, 0.12);
+  border: 1px solid rgba(216, 207, 37, 0.45);
+  background: rgba(216, 207, 37, 0.12);
   color: var(--text);
   border-radius: 16px;
   padding: 13px 16px;
@@ -599,8 +607,9 @@ body {
     gap: 10px;
   }
 
-  .header h1 {
-    font-size: 28px;
+  .brand-title img {
+    width: min(220px, 46vw);
+    max-height: 50px;
   }
 
   .header-actions {
@@ -683,8 +692,9 @@ body {
     padding: 32px;
   }
 
-  .header h1 {
-    font-size: 42px;
+  .brand-title img {
+    width: 320px;
+    max-height: 72px;
   }
 
   .stats-grid {
