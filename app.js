@@ -328,6 +328,7 @@ function renderGroupCard(group) {
  * Menu espandibile con i campi completi del CSV.
  */
 function renderTrackDetails(track) {
+  const showTrackCredits = !haveSameCreditNames(track["Written By"], track["Crediti Traccia"]);
   const details = [
     ["Posizione", track["Posizione"]],
     ["Durata", track["Durata"]],
@@ -336,7 +337,7 @@ function renderTrackDetails(track) {
     ["Catalogo", track["Catalogo"]],
     ["Stile", track["Stile"]],
     ["Written By", track["Written By"]],
-    ["Crediti Traccia", track["Crediti Traccia"]],
+    ["Crediti Traccia", showTrackCredits ? track["Crediti Traccia"] : ""],
     ["Note", track["Note"]]
   ].filter(([, value]) => value);
 
@@ -365,6 +366,33 @@ function renderTrackDetails(track) {
       </dl>
     </details>
   `;
+}
+
+/**
+ * Nasconde i crediti traccia quando ripetono solo gli stessi nomi di Written By.
+ */
+function haveSameCreditNames(writtenBy, trackCredits) {
+  const writtenNames = extractCreditNames(writtenBy);
+  const creditNames = extractCreditNames(trackCredits);
+
+  if (!writtenNames.length || !creditNames.length) {
+    return false;
+  }
+
+  if (writtenNames.length !== creditNames.length) {
+    return false;
+  }
+
+  return writtenNames.every((name, index) => name === creditNames[index]);
+}
+
+function extractCreditNames(value) {
+  return String(value || "")
+    .split(" | ")
+    .map(part => part.replace(/\s*\[[^\]]*\]\s*$/g, "").trim())
+    .filter(Boolean)
+    .map(normalizeText)
+    .sort();
 }
 
 /**

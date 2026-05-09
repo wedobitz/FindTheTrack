@@ -173,7 +173,9 @@ body {
   gap: 8px;
   margin: 12px 0 0;
   padding: 12px;
-  border-top: 1px solid var(--border);
+  background: var(--card-light);
+  border: 1px solid var(--border);
+  border-radius: 14px;
 }
 
 .track-details dl div {
