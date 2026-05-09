@@ -152,6 +152,9 @@ body {
 
 .album-card {
   position: relative;
+  box-shadow:
+    5px 5px 0 rgba(30, 215, 96, 0.26),
+    10px 10px 0 rgba(30, 215, 96, 0.13);
 }
 
 .album-card::before,
@@ -179,6 +182,10 @@ body {
 .album-card.open::before,
 .album-card.open::after {
   display: none;
+}
+
+.album-card.open {
+  box-shadow: none;
 }
 
 .album-header {
@@ -304,6 +311,14 @@ body {
   color: var(--muted);
   text-align: center;
   padding: 40px 10px;
+}
+
+.footer {
+  color: rgba(245, 245, 247, 0.35);
+  font-size: 11px;
+  margin-top: 28px;
+  padding: 18px 0 4px;
+  text-align: center;
 }
 
 @media (min-width: 700px) {
